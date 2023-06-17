@@ -3,6 +3,7 @@ Description=Temperature dashboard server
 After=network.target
 
 [Serivce]
+EnvironmentFile=/root/.env
 Type=simple
 Restart=always
 ExecStart=/usr/local/bin/temp_from_influxdb
