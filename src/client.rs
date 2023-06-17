@@ -28,7 +28,7 @@ pub struct Temperature {
 impl From<TemperatureWithOffset> for Temperature {
     fn from(value: TemperatureWithOffset) -> Self {
         Self {
-            value: value.value,
+            value: (value.value * 100.).round() / 100.,
             time: value.time.timestamp_millis(),
         }
     }
@@ -59,7 +59,7 @@ impl Client {
         &mut self,
         duration: Duration,
     ) -> Result<impl Iterator<Item = Temperature>, String> {
-        let duration = duration.max(Duration::from_secs(5 * 24 * 3600));
+        let duration = duration.min(Duration::from_secs(30 * 24 * 3600));
         let duration_ms = duration.as_millis();
 
         let window = 30000.max(duration.as_millis() / 1000);

@@ -57,7 +57,7 @@ function report_error(message) {
 }
 
 async function fetch_data(span) {
-    const url = "http://localhost:3000/temp/range/" + span
+    const url = "/temp/range/" + span
 
     const start = Date.now();
 

@@ -63,6 +63,8 @@ async fn run(opts: Opts) {
 
     let addr = format!("[::]:{}", opts.http_port).parse().unwrap();
 
+    println!("Starting server on port {}", opts.http_port);
+
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
