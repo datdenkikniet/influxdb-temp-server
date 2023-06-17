@@ -1,0 +1,7 @@
+.small {
+    font-size: smaller;
+}
+
+#chart {
+    max-height: 80vh;
+}

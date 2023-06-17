@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+
+<head>
+    <script src="./chart.js" defer></script>
+    <script src="./chartjs-datefns-adapter.js" defer></script>
+    <script src="./buildchart.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.js" defer></script>
+    <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+    <div>
+        <canvas id="chart"></canvas>
+    </div>
+    <p>Timespan: <input type="text" id="timespan" value="1d"></p>
+    <div>
+        <p class="visible-until-loaded">Loading...</p>
+        <p id="error"></p>
+        <p class="hide-until-loaded small" hidden>Loaded <span id="points-loaded"></span> point(s) in <span
+                id="load-time"></span>
+            milliseconds.</p>
+    </div>
+</body>
