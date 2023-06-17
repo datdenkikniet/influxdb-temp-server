@@ -1,0 +1,8 @@
+[Unit]
+Description=Temperature dashboard server
+After=network.target
+
+[Serivce]
+Type=simple
+Restart=always
+ExecStart=/usr/local/bin/temp_from_influxdb

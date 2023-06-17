@@ -74,8 +74,6 @@ impl Client {
             |> yield(name: "mean")"#,
         );
 
-        println!("{query}");
-
         let query = Query::new(query.to_string());
         let res: Vec<TemperatureWithOffset> = self
             .inner

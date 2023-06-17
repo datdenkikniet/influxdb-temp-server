@@ -108,12 +108,19 @@ async fn temp_range(
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")),
     };
 
-    println!(
-        "Took {} ms to fetch temperatures",
-        start.elapsed().as_millis()
-    );
+    let mut temp_count = 0;
+    let collected: Vec<_> = temps
+        .map(|t| {
+            temp_count += 1;
+            t
+        })
+        .collect();
 
-    let collected: Vec<_> = temps.collect();
+    println!(
+        "Took {} ms to fetch {} measurements",
+        start.elapsed().as_millis(),
+        temp_count
+    );
 
     let start = Instant::now();
     let output = match serde_json::to_string(&collected) {
