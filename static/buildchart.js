@@ -65,10 +65,7 @@ const chart = new Chart(ctx, {
         }
     },
     data: {
-        datasets: [{
-            label: "Loading data...",
-            data: [],
-        }],
+        datasets: [],
     }
 });
 
@@ -138,24 +135,25 @@ async function fetch_data(url) {
 }
 
 function update_chart(data) {
-    chart.data.datasets.pop()
-    chart.data.datasets.pop()
-
     const dataset = data.temp.map((d) => { return { x: d.time, y: d.value } })
     const dataset1 = data.humid.map((d) => { return { x: d.time, y: d.value } })
 
-    chart.data.datasets.push({
-        label: "Temperature (C)",
-        data: dataset,
-        yAxisID: 'y',
-    })
+    if (chart.data.datasets.length != 2) {
+        chart.data.datasets.push({
+            label: "Temperature (C)",
+            data: dataset,
+            yAxisID: 'y',
+        })
 
-    chart.data.datasets.push({
-        label: "Humidity (%H)",
-        data: dataset1,
-        yAxisID: 'y1',
-    })
-
+        chart.data.datasets.push({
+            label: "Humidity (%H)",
+            data: dataset1,
+            yAxisID: 'y1',
+        })
+    } else {
+        chart.data.datasets[0].data = dataset
+        chart.data.datasets[1].data = dataset1
+    }
 
     chart.update('none')
 }
