@@ -6,6 +6,7 @@ const error_message = document.querySelector("#error")
 const reset = document.querySelector("#reset")
 const start_date = document.querySelector("#start-date")
 const end_date = document.querySelector("#end-date")
+const password = document.querySelector("#password")
 
 const chart = new Chart(ctx, {
     type: 'line',
@@ -97,7 +98,7 @@ async function fetch_data(url) {
     let body
 
     try {
-        const data = await fetch(url)
+        const data = await fetch(url, { headers: { authorization: "Bearer " + password.value } })
 
         if (data.status != 200) {
             report_error(await data.text())
@@ -163,6 +164,10 @@ timespan.onchange = () => {
     fetch_range_data(timespan.value).then(update_chart).then(() => chart.resetZoom())
 }
 
+password.onchange = () => {
+    timespan.onchange()
+}
+
 reset.onclick = () => {
     timespan.onchange()
 }
@@ -182,6 +187,3 @@ async function on_range_change() {
 
     update_chart(await fetch_range_data_between(min, max))
 }
-
-// Load initial data
-fetch_range_data(timespan.value).then(update_chart)

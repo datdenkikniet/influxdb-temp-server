@@ -8,10 +8,11 @@ use std::{
 
 use axum::{
     extract::Path,
+    headers::{authorization::Bearer, Authorization},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, get_service},
-    Extension, Router,
+    Extension, Router, TypedHeader,
 };
 
 use clap::Parser;
@@ -29,12 +30,16 @@ struct Opts {
     pub host: String,
     #[clap(env = "INFLUXDB_ORG")]
     pub org: String,
-
+    #[clap(env = "HTTP_PASSWORD")]
+    pub http_password: String,
     #[clap(env = "HTTP_PORT", default_value = "3000")]
     pub http_port: u32,
 }
 
 type SharedState = Arc<Mutex<Client>>;
+
+#[derive(Debug, Clone)]
+struct HttpPassword(String);
 
 #[tokio::main]
 async fn main() {
@@ -66,7 +71,8 @@ async fn run(opts: Opts) {
             get(humidity_range_start_end),
         )
         .fallback(get_service(ServeDir::new("./static")).handle_error(handle_error))
-        .layer(AddExtensionLayer::new(client));
+        .layer(AddExtensionLayer::new(client))
+        .layer(AddExtensionLayer::new(HttpPassword(opts.http_password)));
 
     let addr = format!("[::]:{}", opts.http_port).parse().unwrap();
 
@@ -78,6 +84,19 @@ async fn run(opts: Opts) {
         .unwrap();
 }
 
+async fn check_password(
+    password: String,
+    input: TypedHeader<Authorization<Bearer>>,
+) -> Result<(), (axum::http::StatusCode, String)> {
+    let input_password = input.token();
+
+    if password != input_password {
+        return Err((StatusCode::UNAUTHORIZED, "Invalid password".to_string()));
+    } else {
+        Ok(())
+    }
+}
+
 async fn handle_error(_err: std::io::Error) -> impl axum::response::IntoResponse {
     (
         axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -87,33 +106,37 @@ async fn handle_error(_err: std::io::Error) -> impl axum::response::IntoResponse
 
 async fn current_temp(Extension(client): Extension<SharedState>) -> impl IntoResponse {
     match client.lock().await.get_current_temp().await {
-        Some(temp) => (StatusCode::OK, format!("{:.02}", temp.value)),
-        None => (
+        Some(temp) => Ok(format!("{:.02}", temp.value)),
+        None => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             "Could not get current temperature".to_string(),
-        ),
+        )),
     }
 }
 
-fn to_json<S: Serialize>(input: Vec<S>) -> (StatusCode, String) {
+fn to_json<S: Serialize>(input: Vec<S>) -> Result<String, (StatusCode, String)> {
     let start = Instant::now();
     let output = match serde_json::to_string(&input) {
         Ok(v) => v,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")),
+        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))),
     };
     println!("Took {} ms to serialize", start.elapsed().as_millis());
 
-    (StatusCode::OK, output)
+    Ok(output)
 }
 
 async fn temp_range_start_end(
     Path((start, stop)): Path<(u64, u64)>,
     Extension(client): Extension<SharedState>,
+    Extension(HttpPassword(password)): Extension<HttpPassword>,
+    auth: TypedHeader<Authorization<Bearer>>,
 ) -> impl IntoResponse {
+    check_password(password, auth).await?;
+
     let start_time = Instant::now();
     let temps: Vec<_> = match client.lock().await.get_temps_from_to(start, stop).await {
         Ok(v) => v.collect(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")),
+        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))),
     };
 
     println!(
@@ -138,16 +161,19 @@ fn get_range(input: &str) -> Result<Duration, (StatusCode, String)> {
 async fn temp_range(
     Path(path): Path<String>,
     Extension(client): Extension<SharedState>,
+    Extension(HttpPassword(password)): Extension<HttpPassword>,
+    auth: TypedHeader<Authorization<Bearer>>,
 ) -> impl IntoResponse {
+    check_password(password, auth).await?;
     let duration = match get_range(&path) {
         Ok(duration) => duration.into(),
-        Err(e) => return e,
+        Err(e) => return Err(e),
     };
 
     let start = Instant::now();
     let temps: Vec<_> = match client.lock().await.get_temps_in_span(duration).await {
         Ok(v) => v.collect(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")),
+        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))),
     };
 
     println!(
@@ -162,16 +188,19 @@ async fn temp_range(
 async fn humidity_range(
     Path(path): Path<String>,
     Extension(client): Extension<SharedState>,
+    Extension(HttpPassword(password)): Extension<HttpPassword>,
+    auth: TypedHeader<Authorization<Bearer>>,
 ) -> impl IntoResponse {
+    check_password(password, auth).await?;
     let duration = match get_range(&path) {
         Ok(duration) => duration.into(),
-        Err(e) => return e,
+        Err(e) => return Err(e),
     };
 
     let start = Instant::now();
     let humidities: Vec<_> = match client.lock().await.get_hums_in_span(duration).await {
         Ok(v) => v.collect(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")),
+        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))),
     };
 
     println!(
@@ -186,11 +215,14 @@ async fn humidity_range(
 async fn humidity_range_start_end(
     Path((start, stop)): Path<(u64, u64)>,
     Extension(client): Extension<SharedState>,
+    Extension(HttpPassword(password)): Extension<HttpPassword>,
+    auth: TypedHeader<Authorization<Bearer>>,
 ) -> impl IntoResponse {
+    check_password(password, auth).await?;
     let start_time = Instant::now();
     let temps: Vec<_> = match client.lock().await.get_hums_from_to(start, stop).await {
         Ok(v) => v.collect(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")),
+        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))),
     };
 
     println!(
