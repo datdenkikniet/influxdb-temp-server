@@ -17,6 +17,7 @@ use axum::{
 use clap::Parser;
 use client::Client;
 use duration_string::DurationString;
+use serde::Serialize;
 use tokio::sync::Mutex;
 use tower_http::{add_extension::AddExtensionLayer, services::ServeDir};
 
@@ -59,6 +60,11 @@ async fn run(opts: Opts) {
         .route("/temp/current", get(current_temp))
         .route("/temp/range/:range", get(temp_range))
         .route("/temp/from/:start/to/:stop", get(temp_range_start_end))
+        .route("/humidity/range/:range", get(humidity_range))
+        .route(
+            "/humidity/from/:start/to/:stop",
+            get(humidity_range_start_end),
+        )
         .fallback(get_service(ServeDir::new("./static")).handle_error(handle_error))
         .layer(AddExtensionLayer::new(client));
 
@@ -89,32 +95,9 @@ async fn current_temp(Extension(client): Extension<SharedState>) -> impl IntoRes
     }
 }
 
-async fn temp_range_start_end(
-    Path((start, stop)): Path<(u64, u64)>,
-    Extension(client): Extension<SharedState>,
-) -> impl IntoResponse {
-    let start_time = Instant::now();
-    let temps = match client.lock().await.get_temps_from_for(start, stop).await {
-        Ok(v) => v,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")),
-    };
-
-    let mut temp_count = 0;
-    let collected: Vec<_> = temps
-        .map(|t| {
-            temp_count += 1;
-            t
-        })
-        .collect();
-
-    println!(
-        "Took {} ms to fetch {} measurements",
-        start_time.elapsed().as_millis(),
-        temp_count
-    );
-
+fn to_json<S: Serialize>(input: Vec<S>) -> (StatusCode, String) {
     let start = Instant::now();
-    let output = match serde_json::to_string(&collected) {
+    let output = match serde_json::to_string(&input) {
         Ok(v) => v,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")),
     };
@@ -123,46 +106,98 @@ async fn temp_range_start_end(
     (StatusCode::OK, output)
 }
 
+async fn temp_range_start_end(
+    Path((start, stop)): Path<(u64, u64)>,
+    Extension(client): Extension<SharedState>,
+) -> impl IntoResponse {
+    let start_time = Instant::now();
+    let temps: Vec<_> = match client.lock().await.get_temps_from_to(start, stop).await {
+        Ok(v) => v.collect(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")),
+    };
+
+    println!(
+        "Took {} ms to fetch {} temperature measurements",
+        start_time.elapsed().as_millis(),
+        temps.len()
+    );
+
+    to_json(temps)
+}
+
+fn get_range(input: &str) -> Result<Duration, (StatusCode, String)> {
+    match DurationString::from_str(&input) {
+        Ok(duration) => Ok(duration.into()),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            format!("Could not convert {input} into a duration ({e})."),
+        )),
+    }
+}
+
 async fn temp_range(
     Path(path): Path<String>,
     Extension(client): Extension<SharedState>,
 ) -> impl IntoResponse {
-    let duration = match DurationString::from_str(&path) {
+    let duration = match get_range(&path) {
         Ok(duration) => duration.into(),
-        Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                format!("Could not convert {path} into a duration ({e})."),
-            )
-        }
+        Err(e) => return e,
     };
 
     let start = Instant::now();
-    let temps = match client.lock().await.get_temps_in_span(duration).await {
-        Ok(v) => v,
+    let temps: Vec<_> = match client.lock().await.get_temps_in_span(duration).await {
+        Ok(v) => v.collect(),
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")),
     };
-
-    let mut temp_count = 0;
-    let collected: Vec<_> = temps
-        .map(|t| {
-            temp_count += 1;
-            t
-        })
-        .collect();
 
     println!(
-        "Took {} ms to fetch {} measurements",
+        "Took {} ms to fetch {} temperature measurements",
         start.elapsed().as_millis(),
-        temp_count
+        temps.len()
     );
 
+    to_json(temps)
+}
+
+async fn humidity_range(
+    Path(path): Path<String>,
+    Extension(client): Extension<SharedState>,
+) -> impl IntoResponse {
+    let duration = match get_range(&path) {
+        Ok(duration) => duration.into(),
+        Err(e) => return e,
+    };
+
     let start = Instant::now();
-    let output = match serde_json::to_string(&collected) {
-        Ok(v) => v,
+    let humidities: Vec<_> = match client.lock().await.get_hums_in_span(duration).await {
+        Ok(v) => v.collect(),
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")),
     };
-    println!("Took {} ms to serialize", start.elapsed().as_millis());
 
-    (StatusCode::OK, output)
+    println!(
+        "Took {} ms to fetch {} humidity measurements",
+        start.elapsed().as_millis(),
+        humidities.len()
+    );
+
+    to_json(humidities)
+}
+
+async fn humidity_range_start_end(
+    Path((start, stop)): Path<(u64, u64)>,
+    Extension(client): Extension<SharedState>,
+) -> impl IntoResponse {
+    let start_time = Instant::now();
+    let temps: Vec<_> = match client.lock().await.get_hums_from_to(start, stop).await {
+        Ok(v) => v.collect(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("{e}")),
+    };
+
+    println!(
+        "Took {} ms to fetch {} humidity measurements",
+        start_time.elapsed().as_millis(),
+        temps.len()
+    );
+
+    to_json(temps)
 }

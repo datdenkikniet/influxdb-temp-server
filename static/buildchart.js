@@ -10,16 +10,12 @@ const end_date = document.querySelector("#end-date")
 const chart = new Chart(ctx, {
     type: 'line',
     options: {
-        fill: true,
         parsing: false,
         pointStyle: false,
         plugins: {
             tooltip: {
                 intersect: false,
                 mode: 'index',
-            },
-            decimation: {
-                enabled: true,
             },
             zoom: {
                 zoom: {
@@ -54,7 +50,16 @@ const chart = new Chart(ctx, {
                 title: {
                     display: true,
                     text: 'Temperature (C)'
-                }
+                },
+                position: 'left',
+            },
+            y1: {
+                display: true,
+                position: 'right',
+                title: {
+                    display: true,
+                    text: 'Humidity (%H)'
+                },
             }
         }
     },
@@ -76,11 +81,14 @@ function report_error(message) {
 }
 
 async function fetch_range_data(range) {
-    return await fetch_data("/temp/range/" + range)
+    return { temp: await fetch_data("/temp/range/" + range), humid: await fetch_data("/humidity/range/" + range) }
 }
 
 async function fetch_range_data_between(start_ms, stop_ms) {
-    return await fetch_data("/temp/from/" + start_ms + "/to/" + stop_ms)
+    return {
+        temp: await fetch_data("/temp/from/" + start_ms + "/to/" + stop_ms),
+        humid: await fetch_data("/humidity/from/" + start_ms + "/to/" + stop_ms)
+    }
 }
 
 async function fetch_data(url) {
@@ -129,14 +137,22 @@ async function fetch_data(url) {
 }
 
 function update_chart(data) {
-    chart.data.labels.pop()
+    chart.data.datasets.pop()
     chart.data.datasets.pop()
 
-    const dataset = data.map((d) => { return { x: d.time, y: d.value } })
+    const dataset = data.temp.map((d) => { return { x: d.time, y: d.value } })
+    const dataset1 = data.humid.map((d) => { return { x: d.time, y: d.value } })
 
     chart.data.datasets.push({
         label: "Temperature (C)",
         data: dataset,
+        yAxisID: 'y',
+    })
+
+    chart.data.datasets.push({
+        label: "Humidity (%H)",
+        data: dataset1,
+        yAxisID: 'y1',
     })
 
 
