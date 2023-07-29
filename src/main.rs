@@ -20,7 +20,9 @@ use client::Client;
 use duration_string::DurationString;
 use serde::Serialize;
 use tokio::sync::Mutex;
-use tower_http::{add_extension::AddExtensionLayer, services::ServeDir};
+use tower_http::{
+    add_extension::AddExtensionLayer, compression::CompressionLayer, services::ServeDir,
+};
 
 #[derive(Parser)]
 struct Opts {
@@ -61,6 +63,9 @@ async fn run(opts: Opts) {
 
     let client = Arc::new(Mutex::new(client));
 
+    let brotli = CompressionLayer::new().no_gzip().no_deflate();
+    let other_compression = CompressionLayer::new().no_br();
+
     let app = Router::new()
         .route("/temp/current", get(current_temp))
         .route("/temp/range/:range", get(temp_range))
@@ -72,7 +77,9 @@ async fn run(opts: Opts) {
         )
         .fallback(get_service(ServeDir::new("./static")).handle_error(handle_error))
         .layer(AddExtensionLayer::new(client))
-        .layer(AddExtensionLayer::new(HttpPassword(opts.http_password)));
+        .layer(AddExtensionLayer::new(HttpPassword(opts.http_password)))
+        .layer(brotli)
+        .layer(other_compression);
 
     let addr = format!("[::]:{}", opts.http_port).parse().unwrap();
 
@@ -82,6 +89,13 @@ async fn run(opts: Opts) {
         .serve(app.into_make_service())
         .await
         .unwrap();
+}
+
+async fn handle_error(_err: std::io::Error) -> impl axum::response::IntoResponse {
+    (
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        "Something went wrong...",
+    )
 }
 
 async fn check_password(
@@ -95,13 +109,6 @@ async fn check_password(
     } else {
         Ok(())
     }
-}
-
-async fn handle_error(_err: std::io::Error) -> impl axum::response::IntoResponse {
-    (
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        "Something went wrong...",
-    )
 }
 
 async fn current_temp(Extension(client): Extension<SharedState>) -> impl IntoResponse {
