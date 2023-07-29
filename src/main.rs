@@ -78,6 +78,9 @@ async fn run(opts: Opts) {
         .fallback(get_service(ServeDir::new("./static")).handle_error(handle_error))
         .layer(AddExtensionLayer::new(client))
         .layer(AddExtensionLayer::new(HttpPassword(opts.http_password)))
+        // Put brotli in it's own layer because it compresses this JSON data
+        // a lot better but for some reason the CompressionLayer prefers gzip
+        // and deflate over it.
         .layer(brotli)
         .layer(other_compression);
 
