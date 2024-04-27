@@ -54,7 +54,7 @@ async fn run(opts: Opts) {
     let client = influxdb2::Client::new(opts.host, opts.org, opts.api_token);
     let mut client = Client::new(client);
 
-    client.get_current_temp().await.unwrap();
+    client.get_current().await.unwrap();
     client
         .get_data_in_span(Duration::from_secs(1000))
         .await
@@ -110,8 +110,8 @@ async fn check_password(
 }
 
 async fn current_temp(Extension(client): Extension<SharedState>) -> impl IntoResponse {
-    match client.lock().await.get_current_temp().await {
-        Some(temp) => Ok(format!("{:.02}", temp.value)),
+    match client.lock().await.get_current().await {
+        Some(data) => Ok(format!("{:.02}", data.temperature)),
         None => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             "Could not get current temperature".to_string(),

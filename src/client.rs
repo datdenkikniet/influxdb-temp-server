@@ -3,37 +3,7 @@ use std::time::Duration;
 use chrono::{DateTime, FixedOffset};
 use influxdb2::{models::Query, FromDataPoint};
 use influxdb2_structmap::FromMap;
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, FromDataPoint)]
-pub struct TemperatureWithOffset {
-    value: f64,
-    time: DateTime<FixedOffset>,
-}
-
-impl Default for TemperatureWithOffset {
-    fn default() -> Self {
-        Self {
-            value: f64::NEG_INFINITY,
-            time: DateTime::from(DateTime::<FixedOffset>::MIN_UTC),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct Temperature {
-    pub value: f64,
-    pub time: i64,
-}
-
-impl From<TemperatureWithOffset> for Temperature {
-    fn from(value: TemperatureWithOffset) -> Self {
-        Self {
-            value: (value.value * 100.).round() / 100.,
-            time: value.time.timestamp_millis(),
-        }
-    }
-}
+use serde::Serialize;
 
 pub struct Client {
     inner: influxdb2::Client,
@@ -118,25 +88,11 @@ impl Client {
             .await
     }
 
-    pub async fn get_current_temp(&mut self) -> Option<Temperature> {
-        let query = format!(
-            r#"
-        from(bucket: "Temperature")
-            |> range(start: -1d)
-            |> filter(fn: (r) => r["_measurement"]  == "aht10")
-            |> filter(fn: (r) => r["_field"] == "temperature")
-            |> last()"#,
-        );
-
-        let query = Query::new(query.to_string());
-        let res: Vec<TemperatureWithOffset> = match self.inner.query(Some(query)).await {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("{e}");
-                Vec::new()
-            }
-        };
-
-        res.into_iter().map(Temperature::from).next()
+    pub async fn get_current(&mut self) -> Option<DataPoint> {
+        self.get_data_in_span(Duration::from_secs(60 * 60 * 24))
+            .await
+            .ok()?
+            .into_iter()
+            .last()
     }
 }
