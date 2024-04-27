@@ -19,7 +19,6 @@ use clap::Parser;
 use client::Client;
 use duration_string::DurationString;
 use serde::Serialize;
-use tokio::sync::Mutex;
 use tower_http::{
     add_extension::AddExtensionLayer, compression::CompressionLayer, services::ServeDir,
 };
@@ -38,7 +37,7 @@ struct Opts {
     pub http_port: u32,
 }
 
-type SharedState = Arc<Mutex<Client>>;
+type SharedState = Arc<Client>;
 
 #[derive(Debug, Clone)]
 struct HttpPassword(String);
@@ -52,7 +51,7 @@ async fn main() {
 
 async fn run(opts: Opts) {
     let client = influxdb2::Client::new(opts.host, opts.org, opts.api_token);
-    let mut client = Client::new(client);
+    let client = Client::new(client);
 
     client.get_current().await.unwrap();
     client
@@ -61,7 +60,7 @@ async fn run(opts: Opts) {
         .unwrap()
         .next();
 
-    let client = Arc::new(Mutex::new(client));
+    let client = Arc::new(client);
 
     let brotli = CompressionLayer::new().no_gzip().no_deflate();
     let other_compression = CompressionLayer::new().no_br();
@@ -110,7 +109,7 @@ async fn check_password(
 }
 
 async fn current_temp(Extension(client): Extension<SharedState>) -> impl IntoResponse {
-    match client.lock().await.get_current().await {
+    match client.get_current().await {
         Some(data) => Ok(format!("{:.02}", data.temperature)),
         None => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -143,7 +142,7 @@ async fn data_range(
     };
 
     let start = Instant::now();
-    let temps: Vec<_> = match client.lock().await.get_data_in_span(duration).await {
+    let temps: Vec<_> = match client.get_data_in_span(duration).await {
         Ok(v) => v.collect(),
         Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))),
     };
@@ -166,7 +165,7 @@ async fn data_range_start_end(
     check_password(password, auth).await?;
 
     let start_time = Instant::now();
-    let temps: Vec<_> = match client.lock().await.get_data_from_to(start, stop).await {
+    let temps: Vec<_> = match client.get_data_from_to(start, stop).await {
         Ok(v) => v.collect(),
         Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))),
     };

@@ -39,7 +39,7 @@ impl Client {
     }
 
     async fn in_range<T: FromMap, O: From<T>>(
-        &mut self,
+        &self,
         range: &str,
         window: u64,
     ) -> Result<impl Iterator<Item = O>, String> {
@@ -63,7 +63,7 @@ impl Client {
     }
 
     pub async fn get_data_in_span(
-        &mut self,
+        &self,
         duration: Duration,
     ) -> Result<impl Iterator<Item = DataPoint>, String> {
         let duration_ms = duration.as_millis();
@@ -74,7 +74,7 @@ impl Client {
     }
 
     pub async fn get_data_from_to(
-        &mut self,
+        &self,
         start_ms: u64,
         stop_ms: u64,
     ) -> Result<impl Iterator<Item = DataPoint>, String> {
@@ -88,7 +88,7 @@ impl Client {
             .await
     }
 
-    pub async fn get_current(&mut self) -> Option<DataPoint> {
+    pub async fn get_current(&self) -> Option<DataPoint> {
         self.get_data_in_span(Duration::from_secs(60 * 60 * 24))
             .await
             .ok()?
