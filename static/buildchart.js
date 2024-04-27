@@ -78,13 +78,38 @@ function report_error(message) {
     error_message.hidden = false
 }
 
+function calculate_saturation_pressure(temperature_c) {
+    // Using the Buck equation: 
+    // P = 0.61121 * exp((18.678 - (T / 234.5)) * (T / (257.14 + T)))
+
+    let t_1 = temperature_c / 234.5
+    let t_2 = temperature_c / (257.14 + temperature_c)
+    let pow1 = (18.678 - t_1) * t_2
+    let exp = Math.exp(pow1)
+    return 0.61121 * exp
+}
+
+function absolute_humidity(data) {
+    let temp = data.temperature
+    let hum = data.humidity
+
+    let saturation_pressure = calculate_saturation_pressure(temp)
+    let vapor_pressure = saturation_pressure * (hum / 100)
+
+    let moles = vapor_pressure / (461.5 * temp)
+
+    return { time: data.time, value: moles * 18.02 * 1000 }
+}
+
 function convert(data) {
-    let temp = data.map(v => { return { value: v.temperature, time: v.time }})
-    let humidity = data.map(v => { return { value: v.humidity, time: v.time }})
+    let temp = data.map(v => { return { value: v.temperature, time: v.time } })
+    let humidity = data.map(v => { return { value: v.humidity, time: v.time } })
+    let abs_hum = data.map(absolute_humidity);
 
     return {
         temp: temp,
         humid: humidity,
+        abs_humid: abs_hum,
     }
 }
 
@@ -148,8 +173,9 @@ async function fetch_data(url) {
 function update_chart(data) {
     const dataset = data.temp.map((d) => { return { x: d.time, y: d.value } })
     const dataset1 = data.humid.map((d) => { return { x: d.time, y: d.value } })
+    const dataset2 = data.abs_humid.map(d => { return { x: d.time, y: d.value }})
 
-    if (chart.data.datasets.length != 2) {
+    if (chart.data.datasets.length == 0) {
         chart.data.datasets.push({
             label: "Temperature (C)",
             data: dataset,
