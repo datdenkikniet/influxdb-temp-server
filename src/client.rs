@@ -81,6 +81,30 @@ pub struct Client {
     inner: influxdb2::Client,
 }
 
+#[derive(Debug, Clone, FromDataPoint, Default)]
+pub struct DataPointWithOffset {
+    pub time: DateTime<FixedOffset>,
+    pub temperature: f64,
+    pub humidity: f64,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct DataPoint {
+    pub time: i64,
+    pub temperature: f64,
+    pub humidity: f64,
+}
+
+impl From<DataPointWithOffset> for DataPoint {
+    fn from(value: DataPointWithOffset) -> Self {
+        Self {
+            temperature: (value.temperature * 100.).round() / 100.,
+            humidity: (value.humidity * 100.).round() / 100.,
+            time: value.time.timestamp_millis(),
+        }
+    }
+}
+
 impl Client {
     pub fn new(inner: influxdb2::Client) -> Self {
         Self { inner }
@@ -97,7 +121,7 @@ impl Client {
         from(bucket: "Temperature")
             |> range({range})
             |> filter(fn: (r) => r["_measurement"]  == "aht10")
-            |> filter(fn: (r) => r["_field"] == "{field}")
+            // |> filter(fn: (r) => r["_field"] == "{field}")
             |> aggregateWindow(every: {window}ms, fn: mean, createEmpty: false)
             |> yield(name: "mean")"#,
         );
@@ -110,6 +134,25 @@ impl Client {
             .map_err(|e| format!("{e}"))?;
 
         Ok(res.into_iter().map(O::from))
+    }
+
+    pub async fn get_data_from_to(
+        &mut self,
+        start_ms: u64,
+        stop_ms: u64,
+    ) -> Result<impl Iterator<Item = DataPoint>, String> {
+        let duration_ms = stop_ms - start_ms;
+        let window = 30000.max(duration_ms / 1000);
+
+        let start = start_ms / 1000;
+        let stop = (stop_ms + 1000) / 1000;
+
+        self.in_range::<DataPointWithOffset, _>(
+            "temperature",
+            &format!("start: {start}, stop: {stop}"),
+            window,
+        )
+        .await
     }
 
     pub async fn get_temps_from_to(
