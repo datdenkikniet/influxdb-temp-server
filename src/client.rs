@@ -6,36 +6,6 @@ use influxdb2_structmap::FromMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, FromDataPoint)]
-pub struct HumidityWithOffset {
-    value: f64,
-    time: DateTime<FixedOffset>,
-}
-
-impl Default for HumidityWithOffset {
-    fn default() -> Self {
-        Self {
-            value: f64::NEG_INFINITY,
-            time: DateTime::from(DateTime::<FixedOffset>::MIN_UTC),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct Humidity {
-    pub value: f64,
-    pub time: i64,
-}
-
-impl From<HumidityWithOffset> for Humidity {
-    fn from(value: HumidityWithOffset) -> Self {
-        Self {
-            value: (value.value * 100.).round() / 100.,
-            time: value.time.timestamp_millis(),
-        }
-    }
-}
-
-#[derive(Debug, FromDataPoint)]
 pub struct TemperatureWithOffset {
     value: f64,
     time: DateTime<FixedOffset>,
@@ -63,18 +33,6 @@ impl From<TemperatureWithOffset> for Temperature {
             time: value.time.timestamp_millis(),
         }
     }
-}
-
-macro_rules! log_err {
-    ($thing:expr) => {
-        match $thing {
-            Ok(v) => Some(v),
-            Err(e) => {
-                eprintln!("{e:?}");
-                None
-            }
-        }
-    };
 }
 
 pub struct Client {
@@ -171,7 +129,13 @@ impl Client {
         );
 
         let query = Query::new(query.to_string());
-        let res: Vec<TemperatureWithOffset> = log_err!(self.inner.query(Some(query)).await)?;
+        let res: Vec<TemperatureWithOffset> = match self.inner.query(Some(query)).await {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("{e}");
+                Vec::new()
+            }
+        };
 
         res.into_iter().map(Temperature::from).next()
     }
