@@ -78,20 +78,26 @@ function report_error(message) {
     error_message.hidden = false
 }
 
-async function fetch_range_data(range) {
-    return { temp: await fetch_data("/temp/range/" + range), humid: await fetch_data("/humidity/range/" + range) }
-}
-
-async function fetch_range_data_between(start_ms, stop_ms) {
-    let data_range = await fetch_data("/data/from/" + start_ms + "/to/" + stop_ms)
-
-    let temp = data_range.map(v => { return { value: v.temperature, time: v.time }})
-    let humidity = data_range.map(v => { return { value: v.humidity, time: v.time }})
+function convert(data) {
+    let temp = data.map(v => { return { value: v.temperature, time: v.time }})
+    let humidity = data.map(v => { return { value: v.humidity, time: v.time }})
 
     return {
         temp: temp,
         humid: humidity,
     }
+}
+
+async function fetch_range_data(range) {
+    let data_range = await fetch_data("/data/range/" + range)
+
+    return convert(data_range)
+}
+
+async function fetch_range_data_between(start_ms, stop_ms) {
+    let data_range = await fetch_data("/data/from/" + start_ms + "/to/" + stop_ms)
+
+    return convert(data_range)
 }
 
 async function fetch_data(url) {

@@ -112,7 +112,6 @@ impl Client {
 
     async fn in_range<T: FromMap, O: From<T>>(
         &mut self,
-        field: &str,
         range: &str,
         window: u64,
     ) -> Result<impl Iterator<Item = O>, String> {
@@ -121,7 +120,6 @@ impl Client {
         from(bucket: "Temperature")
             |> range({range})
             |> filter(fn: (r) => r["_measurement"]  == "aht10")
-            // |> filter(fn: (r) => r["_field"] == "{field}")
             |> aggregateWindow(every: {window}ms, fn: mean, createEmpty: false)
             |> yield(name: "mean")"#,
         );
@@ -136,6 +134,17 @@ impl Client {
         Ok(res.into_iter().map(O::from))
     }
 
+    pub async fn get_data_in_span(
+        &mut self,
+        duration: Duration,
+    ) -> Result<impl Iterator<Item = DataPoint>, String> {
+        let duration_ms = duration.as_millis();
+        let window = 30000.max(duration_ms / 1000);
+
+        self.in_range::<DataPointWithOffset, _>(&format!("start: -{duration_ms}ms"), window as u64)
+            .await
+    }
+
     pub async fn get_data_from_to(
         &mut self,
         start_ms: u64,
@@ -147,80 +156,8 @@ impl Client {
         let start = start_ms / 1000;
         let stop = (stop_ms + 1000) / 1000;
 
-        self.in_range::<DataPointWithOffset, _>(
-            "temperature",
-            &format!("start: {start}, stop: {stop}"),
-            window,
-        )
-        .await
-    }
-
-    pub async fn get_temps_from_to(
-        &mut self,
-        start_ms: u64,
-        stop_ms: u64,
-    ) -> Result<impl Iterator<Item = Temperature>, String> {
-        let duration_ms = stop_ms - start_ms;
-        let window = 30000.max(duration_ms / 1000);
-
-        let start = start_ms / 1000;
-        let stop = (stop_ms + 1000) / 1000;
-
-        self.in_range::<TemperatureWithOffset, _>(
-            "temperature",
-            &format!("start: {start}, stop: {stop}"),
-            window,
-        )
-        .await
-    }
-
-    pub async fn get_temps_in_span(
-        &mut self,
-        duration: Duration,
-    ) -> Result<impl Iterator<Item = Temperature>, String> {
-        let duration_ms = duration.as_millis();
-        let window = 30000.max(duration_ms / 1000);
-
-        self.in_range::<TemperatureWithOffset, _>(
-            "temperature",
-            &format!("start: -{duration_ms}ms"),
-            window as u64,
-        )
-        .await
-    }
-
-    pub async fn get_hums_from_to(
-        &mut self,
-        start_ms: u64,
-        stop_ms: u64,
-    ) -> Result<impl Iterator<Item = Humidity>, String> {
-        let duration_ms = stop_ms - start_ms;
-        let window = 30000.max(duration_ms / 1000);
-
-        let start = start_ms / 1000;
-        let stop = (stop_ms + 1000) / 1000;
-
-        self.in_range::<HumidityWithOffset, _>(
-            "humidity",
-            &format!("start: {start}, stop: {stop}"),
-            window,
-        )
-        .await
-    }
-
-    pub async fn get_hums_in_span(
-        &mut self,
-        duration: Duration,
-    ) -> Result<impl Iterator<Item = Humidity>, String> {
-        let duration_ms = duration.as_millis();
-        let window = 30000.max(duration_ms / 1000);
-
-        self.in_range::<HumidityWithOffset, _>(
-            "humidity",
-            &format!("start: -{duration_ms}ms"),
-            window as u64,
-        )
-        .await
+        self.in_range::<DataPointWithOffset, _>(&format!("start: {start}, stop: {stop}"), window)
+            .await
     }
 
     pub async fn get_current_temp(&mut self) -> Option<Temperature> {

@@ -56,7 +56,7 @@ async fn run(opts: Opts) {
 
     client.get_current_temp().await.unwrap();
     client
-        .get_temps_in_span(Duration::from_secs(1000))
+        .get_data_in_span(Duration::from_secs(1000))
         .await
         .unwrap()
         .next();
@@ -68,13 +68,7 @@ async fn run(opts: Opts) {
 
     let app = Router::new()
         .route("/temp/current", get(current_temp))
-        .route("/temp/range/:range", get(temp_range))
-        .route("/temp/from/:start/to/:stop", get(temp_range_start_end))
-        .route("/humidity/range/:range", get(humidity_range))
-        .route(
-            "/humidity/from/:start/to/:stop",
-            get(humidity_range_start_end),
-        )
+        .route("/data/range/:range", get(data_range))
         .route("/data/from/:start/to/:stop", get(data_range_start_end))
         .fallback(get_service(ServeDir::new("./static")).handle_error(handle_error))
         .layer(AddExtensionLayer::new(client))
@@ -136,6 +130,33 @@ fn to_json<S: Serialize>(input: Vec<S>) -> Result<String, (StatusCode, String)> 
     Ok(output)
 }
 
+async fn data_range(
+    Path(path): Path<String>,
+    Extension(client): Extension<SharedState>,
+    Extension(HttpPassword(password)): Extension<HttpPassword>,
+    auth: TypedHeader<Authorization<Bearer>>,
+) -> impl IntoResponse {
+    check_password(password, auth).await?;
+    let duration = match get_range(&path) {
+        Ok(duration) => duration.into(),
+        Err(e) => return Err(e),
+    };
+
+    let start = Instant::now();
+    let temps: Vec<_> = match client.lock().await.get_data_in_span(duration).await {
+        Ok(v) => v.collect(),
+        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))),
+    };
+
+    println!(
+        "Took {} ms to fetch {} temperature measurements",
+        start.elapsed().as_millis(),
+        temps.len()
+    );
+
+    to_json(temps)
+}
+
 async fn data_range_start_end(
     Path((start, stop)): Path<(u64, u64)>,
     Extension(client): Extension<SharedState>,
@@ -159,29 +180,6 @@ async fn data_range_start_end(
     to_json(temps)
 }
 
-async fn temp_range_start_end(
-    Path((start, stop)): Path<(u64, u64)>,
-    Extension(client): Extension<SharedState>,
-    Extension(HttpPassword(password)): Extension<HttpPassword>,
-    auth: TypedHeader<Authorization<Bearer>>,
-) -> impl IntoResponse {
-    check_password(password, auth).await?;
-
-    let start_time = Instant::now();
-    let temps: Vec<_> = match client.lock().await.get_temps_from_to(start, stop).await {
-        Ok(v) => v.collect(),
-        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))),
-    };
-
-    println!(
-        "Took {} ms to fetch {} temperature measurements",
-        start_time.elapsed().as_millis(),
-        temps.len()
-    );
-
-    to_json(temps)
-}
-
 fn get_range(input: &str) -> Result<Duration, (StatusCode, String)> {
     match DurationString::from_str(&input) {
         Ok(duration) => Ok(duration.into()),
@@ -190,80 +188,4 @@ fn get_range(input: &str) -> Result<Duration, (StatusCode, String)> {
             format!("Could not convert {input} into a duration ({e})."),
         )),
     }
-}
-
-async fn temp_range(
-    Path(path): Path<String>,
-    Extension(client): Extension<SharedState>,
-    Extension(HttpPassword(password)): Extension<HttpPassword>,
-    auth: TypedHeader<Authorization<Bearer>>,
-) -> impl IntoResponse {
-    check_password(password, auth).await?;
-    let duration = match get_range(&path) {
-        Ok(duration) => duration.into(),
-        Err(e) => return Err(e),
-    };
-
-    let start = Instant::now();
-    let temps: Vec<_> = match client.lock().await.get_temps_in_span(duration).await {
-        Ok(v) => v.collect(),
-        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))),
-    };
-
-    println!(
-        "Took {} ms to fetch {} temperature measurements",
-        start.elapsed().as_millis(),
-        temps.len()
-    );
-
-    to_json(temps)
-}
-
-async fn humidity_range(
-    Path(path): Path<String>,
-    Extension(client): Extension<SharedState>,
-    Extension(HttpPassword(password)): Extension<HttpPassword>,
-    auth: TypedHeader<Authorization<Bearer>>,
-) -> impl IntoResponse {
-    check_password(password, auth).await?;
-    let duration = match get_range(&path) {
-        Ok(duration) => duration.into(),
-        Err(e) => return Err(e),
-    };
-
-    let start = Instant::now();
-    let humidities: Vec<_> = match client.lock().await.get_hums_in_span(duration).await {
-        Ok(v) => v.collect(),
-        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))),
-    };
-
-    println!(
-        "Took {} ms to fetch {} humidity measurements",
-        start.elapsed().as_millis(),
-        humidities.len()
-    );
-
-    to_json(humidities)
-}
-
-async fn humidity_range_start_end(
-    Path((start, stop)): Path<(u64, u64)>,
-    Extension(client): Extension<SharedState>,
-    Extension(HttpPassword(password)): Extension<HttpPassword>,
-    auth: TypedHeader<Authorization<Bearer>>,
-) -> impl IntoResponse {
-    check_password(password, auth).await?;
-    let start_time = Instant::now();
-    let temps: Vec<_> = match client.lock().await.get_hums_from_to(start, stop).await {
-        Ok(v) => v.collect(),
-        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("{e}"))),
-    };
-
-    println!(
-        "Took {} ms to fetch {} humidity measurements",
-        start_time.elapsed().as_millis(),
-        temps.len()
-    );
-
-    to_json(temps)
 }
