@@ -83,9 +83,14 @@ async function fetch_range_data(range) {
 }
 
 async function fetch_range_data_between(start_ms, stop_ms) {
+    let data_range = await fetch_data("/data/from/" + start_ms + "/to/" + stop_ms)
+
+    let temp = data_range.map(v => { return { value: v.temperature, time: v.time }})
+    let humidity = data_range.map(v => { return { value: v.humidity, time: v.time }})
+
     return {
-        temp: await fetch_data("/temp/from/" + start_ms + "/to/" + stop_ms),
-        humid: await fetch_data("/humidity/from/" + start_ms + "/to/" + stop_ms)
+        temp: temp,
+        humid: humidity,
     }
 }
 
