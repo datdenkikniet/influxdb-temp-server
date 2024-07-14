@@ -1,7 +1,40 @@
+body {
+    overflow: hidden;
+}
+
 .small {
     font-size: smaller;
 }
 
 #chart {
     max-height: 80vh;
+}
+
+.cat-image {
+    --cat-size: 100px;
+    position: absolute;
+    bottom: calc((-1 * var(--cat-size)) + (var(--cat-size) * 0.1));
+    height: var(--cat-size);
+    left: 0;
+    rotate: 30deg;
+}
+
+.cat-image-animation {
+    animation: fly 2.5s ease-in forwards;
+}
+
+@keyframes fly {
+    30% {
+        rotate: 30deg;
+    }
+
+    50% {
+        rotate: 390deg;
+    }
+
+    100% {
+        bottom: calc(100% + var(--cat-size));
+        left: 100%;
+        rotate: 390deg;
+    }
 }
