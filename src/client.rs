@@ -144,7 +144,6 @@ impl Client {
         from(bucket: "Temperature")
             |> range(start: -1d)
             |> filter(fn: (r) => r["_measurement"]  == "aht10")
-            |> filter(fn: (r) => r["_field"] == "temperature")
             |> last()"#,
         );
 
