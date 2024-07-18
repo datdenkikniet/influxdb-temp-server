@@ -79,13 +79,24 @@ function report_error(message) {
 }
 
 async function fetch_range_data(range) {
-    return { temp: await fetch_data("/temp/range/" + range), humid: await fetch_data("/humidity/range/" + range) }
+    const data = await fetch_data("/data/range/" + range)
+    const temp = data.map((d) => { return { time: d.time, value: d.temperature } })
+    const humid = data.map((d) => { return { time: d.time, value: d.humidity } })
+
+    return {
+        temp: temp,
+        humid: humid,
+    }
 }
 
 async function fetch_range_data_between(start_ms, stop_ms) {
+    const data = await fetch_data("/data/from/" + start_ms + "/to/" + stop_ms)
+    const temp = data.map((d) => { return { time: d.time, value: d.temperature } })
+    const humid = data.map((d) => { return { time: d.time, value: d.humidity } })
+
     return {
-        temp: await fetch_data("/temp/from/" + start_ms + "/to/" + stop_ms),
-        humid: await fetch_data("/humidity/from/" + start_ms + "/to/" + stop_ms)
+        temp: temp,
+        humid: humid,
     }
 }
 
