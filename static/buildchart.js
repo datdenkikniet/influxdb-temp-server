@@ -48,6 +48,7 @@ const chart = new Chart(ctx, {
                 }
             },
             y: {
+                bounds: 'data',
                 title: {
                     display: true,
                     text: 'Temperature (C)'
@@ -55,12 +56,22 @@ const chart = new Chart(ctx, {
                 position: 'left',
             },
             y1: {
+                bounds: 'data',
                 display: true,
                 position: 'right',
                 title: {
                     display: true,
                     text: 'Humidity (%H)'
                 },
+            },
+            y3: {
+                display: true,
+                min: 400,
+                max: 2000,
+                title: {
+                    display: true,
+                    text: 'Co2 (ppm)'
+                }
             }
         }
     },
@@ -82,10 +93,12 @@ async function fetch_range_data(range) {
     const data = await fetch_data("/data/range/" + range)
     const temp = data.map((d) => { return { time: d.time, value: d.temperature } })
     const humid = data.map((d) => { return { time: d.time, value: d.humidity } })
+    const co2 = data.filter((d) => d.co2).map((d) => { return { time: d.time, value: d.co2 } });
 
     return {
         temp: temp,
         humid: humid,
+        co2: co2,
     }
 }
 
@@ -93,10 +106,12 @@ async function fetch_range_data_between(start_ms, stop_ms) {
     const data = await fetch_data("/data/from/" + start_ms + "/to/" + stop_ms)
     const temp = data.map((d) => { return { time: d.time, value: d.temperature } })
     const humid = data.map((d) => { return { time: d.time, value: d.humidity } })
+    const co2 = data.filter((d) => d.co2).map((d) => { return { time: d.time, value: d.co2 } });
 
     return {
         temp: temp,
         humid: humid,
+        co2: co2,
     }
 }
 
@@ -148,8 +163,9 @@ async function fetch_data(url) {
 function update_chart(data) {
     const dataset = data.temp.map((d) => { return { x: d.time, y: d.value } })
     const dataset1 = data.humid.map((d) => { return { x: d.time, y: d.value } })
+    const dataset2 = data.co2.map((d) => { return { x: d.time, y: d.value } })
 
-    if (chart.data.datasets.length != 2) {
+    if (chart.data.datasets.length != 3) {
         chart.data.datasets.push({
             label: "Temperature (C)",
             data: dataset,
@@ -161,9 +177,16 @@ function update_chart(data) {
             data: dataset1,
             yAxisID: 'y1',
         })
+
+        chart.data.datasets.push({
+            label: "Co2 (ppm)",
+            data: dataset2,
+            yAxisID: 'y2',
+        })
     } else {
         chart.data.datasets[0].data = dataset
         chart.data.datasets[1].data = dataset1
+        chart.data.datasets[2].data = dataset2
     }
 
     chart.update('none')
