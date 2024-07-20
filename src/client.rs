@@ -1,14 +1,47 @@
 use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset};
-use influxdb2::{models::Query, FromDataPoint};
+use influxdb2::{models::Query, FromMap};
+use influxdb2_structmap::value::Value;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, FromDataPoint, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct DataPointWithOffset {
     pub time: DateTime<FixedOffset>,
     pub temperature: f64,
     pub humidity: f64,
+    pub co2: Option<f64>,
+}
+
+impl FromMap for DataPointWithOffset {
+    fn from_genericmap(map: influxdb2_structmap::GenericMap) -> Self {
+        macro_rules! get {
+            ($name:literal, $pat:ident) => {
+                match map.get($name) {
+                    Some(Value::$pat(v)) => v.clone(),
+                    Some(v) => panic!("Invalid type for {} {:?}.", $name, v),
+                    None => panic!("Missing value for {}.", $name),
+                }
+            };
+        }
+
+        let time = get!("_time", TimeRFC);
+        let temperature = get!("temperature", Double);
+        let humidity = get!("humidity", Double);
+
+        let co2 = match map.get("co2") {
+            Some(Value::Double(v)) => Some(v.clone()),
+            Some(v) => panic!("Invalid value for co2: {v:?}"),
+            None => None,
+        };
+
+        Self {
+            time,
+            humidity: humidity.into(),
+            temperature: temperature.into(),
+            co2: co2.map(From::from),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -16,6 +49,7 @@ pub struct DataPoint {
     pub time: i64,
     pub humidity: f64,
     pub temperature: f64,
+    pub co2: Option<f64>,
 }
 
 impl From<DataPointWithOffset> for DataPoint {
@@ -24,6 +58,7 @@ impl From<DataPointWithOffset> for DataPoint {
             humidity: (value.humidity * 100.).round() / 100.,
             temperature: (value.temperature * 100.).round() / 100.,
             time: value.time.timestamp_millis(),
+            co2: value.co2,
         }
     }
 }
@@ -86,8 +121,6 @@ impl Client {
 
         let start = start_ms / 1000;
         let stop = (stop_ms + 1000 + 1) / 1000;
-
-        println!("{window}, {start}, {stop}");
 
         self.in_range(&format!("start: {start}, stop: {stop}"), window)
             .await
