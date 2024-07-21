@@ -229,6 +229,7 @@ function update_co2_box(co2_level) {
     console.log("current level: ", current_level);
     co2_box.textContent = current_level.description;
     co2_box.style.backgroundColor = current_level.color;
+    
 }
 
 fetch("/co2/current").then((b) => b.json()).then(update_co2_box);
