@@ -151,4 +151,19 @@ impl Client {
 
         res.into_iter().map(|v| v.temperature).next()
     }
+
+    pub async fn get_current_co2(&mut self) -> Option<f64> {
+        let query = format!(
+            r#"
+        from(bucket: "Temperature")
+            |> range(start: -1d)
+            |> filter(fn: (r) => r["_measurement"]  == "aht10")
+            |> last()"#,
+        );
+
+        let query = Query::new(query.to_string());
+        let res: Vec<DataPointWithOffset> = log_err!(self.inner.query(Some(query)).await)?;
+
+        res.into_iter().map(|v| v.co2).next().flatten()
+    }
 }

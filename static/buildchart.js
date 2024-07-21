@@ -1,3 +1,5 @@
+import { co2_map } from "./co2_level_mapping.js"
+
 const ctx = document.querySelector('#chart')
 const load_time = document.querySelector('#load-time')
 const points_loaded = document.querySelector('#points-loaded')
@@ -7,6 +9,7 @@ const reset = document.querySelector("#reset")
 const start_date = document.querySelector("#start-date")
 const end_date = document.querySelector("#end-date")
 const password = document.querySelector("#password")
+const co2_box = document.querySelector("#co2-box")
 
 const chart = new Chart(ctx, {
     type: 'line',
@@ -219,3 +222,13 @@ async function on_range_change() {
 
     update_chart(await fetch_range_data_between(min, max))
 }
+
+function update_co2_box(co2_level) {
+    console.log("current_co2 is fetched: ", co2_level);
+    const current_level = co2_map.find((elem) => elem.start <= co2_level && co2_level < elem.end)
+    console.log("current level: ", current_level);
+    co2_box.textContent = current_level.description;
+    co2_box.style.backgroundColor = current_level.color;
+}
+
+fetch("/co2/current").then((b) => b.json()).then(update_co2_box);

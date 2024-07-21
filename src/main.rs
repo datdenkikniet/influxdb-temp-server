@@ -63,6 +63,7 @@ async fn run(opts: Opts) {
 
     let app = Router::new()
         .route("/temp/current", get(current_temp))
+        .route("/co2/current", get(current_co2))
         .route("/data/range/:range", get(data_range))
         .route("/data/from/:start/to/:stop", get(data_range_start_end))
         .fallback(get_service(ServeDir::new("./static")).handle_error(handle_error))
@@ -105,6 +106,16 @@ async fn current_temp(Extension(client): Extension<SharedState>) -> impl IntoRes
         None => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             "Could not get current temperature".to_string(),
+        )),
+    }
+}
+
+async fn current_co2(Extension(client): Extension<SharedState>) -> impl IntoResponse {
+    match client.lock().await.get_current_co2().await {
+        Some(temp) => Ok(format!("{:.02}", temp)),
+        None => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Could not get current co2 level".to_string(),
         )),
     }
 }
