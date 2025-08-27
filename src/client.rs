@@ -137,7 +137,7 @@ impl Client {
             .await
     }
 
-    pub async fn get_current_temp(&mut self) -> Option<f64> {
+    pub async fn get_current_data(&mut self) -> Option<DataPoint> {
         let query = format!(
             r#"
         from(bucket: "Temperature")
@@ -148,7 +148,20 @@ impl Client {
 
         let query = Query::new(query.to_string());
         let res: Vec<DataPointWithOffset> = log_err!(self.inner.query(Some(query)).await)?;
+        let mut data_points = res.into_iter().map(DataPoint::from);
 
-        res.into_iter().map(|v| v.temperature).next()
+        data_points.next()
+    }
+
+    pub async fn get_current_temp(&mut self) -> Option<f64> {
+        self.get_current_data().await.map(|v| v.temperature)
+    }
+
+    pub async fn get_current_co2(&mut self) -> Option<f64> {
+        self.get_current_data().await.map(|v| v.co2).flatten()
+    }
+
+    pub async fn get_current_humidity(&mut self) -> Option<f64> {
+        self.get_current_data().await.map(|v| v.humidity)
     }
 }

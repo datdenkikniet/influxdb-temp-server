@@ -7,12 +7,7 @@ use std::{
 };
 
 use axum::{
-    extract::Path,
-    headers::{authorization::Bearer, Authorization},
-    http::StatusCode,
-    response::IntoResponse,
-    routing::{get, get_service},
-    Extension, Router, TypedHeader,
+    extract::Path, headers::{authorization::Bearer, Authorization}, http::StatusCode, response::IntoResponse, routing::{get, get_service}, Extension, Json, Router, TypedHeader
 };
 
 use clap::Parser;
@@ -62,7 +57,10 @@ async fn run(opts: Opts) {
     let client = Arc::new(Mutex::new(client));
 
     let app = Router::new()
+        .route("/current", get(current_data))
         .route("/temp/current", get(current_temp))
+        .route("/co2/current", get(current_co2))
+        .route("/humidity/current", get(current_humidity))
         .route("/data/range/:range", get(data_range))
         .route("/data/from/:start/to/:stop", get(data_range_start_end))
         .fallback(get_service(ServeDir::new("./static")).handle_error(handle_error))
@@ -102,6 +100,36 @@ fn check_password(
 async fn current_temp(Extension(client): Extension<SharedState>) -> impl IntoResponse {
     match client.lock().await.get_current_temp().await {
         Some(temp) => Ok(format!("{:.02}", temp)),
+        None => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Could not get current temperature".to_string(),
+        )),
+    }
+}
+
+async fn current_co2(Extension(client): Extension<SharedState>) -> impl IntoResponse {
+    match client.lock().await.get_current_co2().await {
+        Some(temp) => Ok(format!("{:.02}", temp)),
+        None => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Could not get current temperature".to_string(),
+        )),
+    }
+}
+
+async fn current_humidity(Extension(client): Extension<SharedState>) -> impl IntoResponse {
+    match client.lock().await.get_current_humidity().await {
+        Some(temp) => Ok(format!("{:.02}", temp)),
+        None => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Could not get current temperature".to_string(),
+        )),
+    }
+}
+
+async fn current_data(Extension(client): Extension<SharedState>) -> impl IntoResponse {
+    match client.lock().await.get_current_data().await {
+        Some(temp) => Ok(Json(temp)),
         None => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             "Could not get current temperature".to_string(),
